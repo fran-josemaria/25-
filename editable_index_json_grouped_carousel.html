@@ -1,0 +1,187 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>소나무 전/적 그룹 + 다중 사진 슬라이드</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background-color: #f4f4f4; }
+        .map-container { position: relative; display: inline-block; }
+        .pin {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: #28a745;
+            border-radius: 50%;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            line-height: 30px;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+        }
+        .popup {
+            display: none;
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 10px;
+            z-index: 10;
+            width: 320px;
+        }
+        .carousel {
+            position: relative;
+            width: 300px;
+            height: 200px;
+            margin: auto;
+        }
+        .carousel img {
+            display: none;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .carousel img.active {
+            display: block;
+        }
+        .carousel-controls {
+            margin-top: 5px;
+        }
+        .controls {
+            margin: 15px;
+        }
+        select, input[type="file"], button {
+            padding: 6px;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>📌 전정 / 적심 그룹 + 이미지 슬라이드 팝업 지원</h2>
+    <div class="controls">
+        <label>그룹 선택:
+            <select id="groupSelect">
+                <option value="전">전정</option>
+                <option value="적">적심</option>
+            </select>
+        </label>
+        <button onclick="downloadPins()">📥 저장 (JSON)</button>
+        <input type="file" id="jsonUpload" accept=".json" onchange="uploadPins(event)">
+    </div>
+    <div class="map-container">
+        <img id="map" src="layout_sample.jpg" width="1000px">
+    </div>
+
+    <script>
+        let counters = { "전": 1, "적": 1 };
+        const mapContainer = document.querySelector(".map-container");
+
+        function createPin(x, y, label) {
+            const pin = document.createElement("div");
+            pin.className = "pin";
+            pin.style.left = x + "px";
+            pin.style.top = y + "px";
+            pin.textContent = label;
+
+            const popup = document.createElement("div");
+            popup.className = "popup";
+            popup.style.left = (x + 20) + "px";
+            popup.style.top = (y + 20) + "px";
+
+            const carousel = document.createElement("div");
+            carousel.className = "carousel";
+            for (let i = 1; i <= 3; i++) {
+                const img = document.createElement("img");
+                img.src = `images/${label}_${i}.jpg`;
+                if (i === 1) img.classList.add("active");
+                carousel.appendChild(img);
+            }
+
+            const controls = document.createElement("div");
+            controls.className = "carousel-controls";
+            controls.innerHTML = `
+                <button onclick="prevSlide(this)">⬅️</button>
+                <button onclick="nextSlide(this)">➡️</button>
+            `;
+
+            popup.innerHTML = `<strong>${label}</strong><br>`;
+            popup.appendChild(carousel);
+            popup.appendChild(controls);
+            mapContainer.appendChild(pin);
+            mapContainer.appendChild(popup);
+
+            pin.addEventListener("click", function(e) {
+                e.stopPropagation();
+                document.querySelectorAll(".popup").forEach(p => p.style.display = "none");
+                popup.style.display = "block";
+            });
+
+            popup.addEventListener("click", e => e.stopPropagation());
+        }
+
+        function prevSlide(btn) {
+            const carousel = btn.closest(".popup").querySelector(".carousel");
+            const imgs = carousel.querySelectorAll("img");
+            let idx = [...imgs].findIndex(img => img.classList.contains("active"));
+            imgs[idx].classList.remove("active");
+            imgs[(idx - 1 + imgs.length) % imgs.length].classList.add("active");
+        }
+
+        function nextSlide(btn) {
+            const carousel = btn.closest(".popup").querySelector(".carousel");
+            const imgs = carousel.querySelectorAll("img");
+            let idx = [...imgs].findIndex(img => img.classList.contains("active"));
+            imgs[idx].classList.remove("active");
+            imgs[(idx + 1) % imgs.length].classList.add("active");
+        }
+
+        function downloadPins() {
+            const pins = [];
+            document.querySelectorAll(".pin").forEach(pin => {
+                const label = pin.textContent;
+                const top = parseFloat(pin.style.top);
+                const left = parseFloat(pin.style.left);
+                pins.push({ x: left, y: top, label: label });
+            });
+            const blob = new Blob([JSON.stringify(pins, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "pins.json";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function uploadPins(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                const pins = JSON.parse(content);
+                pins.forEach(pin => {
+                    createPin(pin.x, pin.y, pin.label);
+                    const group = pin.label.startsWith("전") ? "전" : "적";
+                    const num = parseInt(pin.label.split("-")[1]);
+                    if (counters[group] <= num) counters[group] = num + 1;
+                });
+            };
+            reader.readAsText(file);
+        }
+
+        document.getElementById("map").addEventListener("click", function(event) {
+            const rect = this.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const group = document.getElementById("groupSelect").value;
+            const label = group + "-" + counters[group]++;
+            createPin(x, y, label);
+        });
+
+        window.addEventListener("click", function() {
+            document.querySelectorAll(".popup").forEach(p => p.style.display = "none");
+        });
+    </script>
+</body>
+</html>
