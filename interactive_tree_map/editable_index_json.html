@@ -1,0 +1,111 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>소나무 위치 JSON 저장형 인터랙티브 도면</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background-color: #f4f4f4; }
+        .map-container { position: relative; display: inline-block; }
+        .pin {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: green;
+            border-radius: 50%;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            line-height: 30px;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+        }
+        #log {
+            width: 80%;
+            margin: 20px auto;
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .controls {
+            margin: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h2>📌 도면 클릭 → 핀 생성 | JSON으로 저장/불러오기 가능</h2>
+    <div class="controls">
+        <button onclick="downloadPins()">📥 저장 (JSON)</button>
+        <input type="file" id="jsonUpload" accept=".json" onchange="uploadPins(event)">
+    </div>
+    <div class="map-container">
+        <img id="map" src="layout_sample.jpg" width="1000px">
+    </div>
+    <div id="log">📍 핀 코드 목록:</div>
+
+    <script>
+        let counter = 1;
+        const mapContainer = document.querySelector(".map-container");
+
+        function createPin(x, y, label) {
+            const pin = document.createElement("div");
+            pin.className = "pin";
+            pin.style.left = x + "px";
+            pin.style.top = y + "px";
+            pin.textContent = label;
+            mapContainer.appendChild(pin);
+        }
+
+        function logPin(x, y, label) {
+            const log = document.getElementById("log");
+            log.innerHTML += `<div>&lt;div class="pin" style="top: ${y}px; left: ${x}px;"&gt;${label}&lt;/div&gt;</div>`;
+        }
+
+        function downloadPins() {
+            const pins = [];
+            document.querySelectorAll(".pin").forEach(pin => {
+                const label = pin.textContent;
+                const top = parseFloat(pin.style.top);
+                const left = parseFloat(pin.style.left);
+                pins.push({ x: left, y: top, label: label });
+            });
+            const blob = new Blob([JSON.stringify(pins, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "pins.json";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function uploadPins(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                const pins = JSON.parse(content);
+                pins.forEach(pin => {
+                    createPin(pin.x, pin.y, pin.label);
+                    logPin(pin.x, pin.y, pin.label);
+                    counter = Math.max(counter, parseInt(pin.label.replace('R','')) + 1);
+                });
+            };
+            reader.readAsText(file);
+        }
+
+        document.getElementById("map").addEventListener("click", function(event) {
+            const rect = this.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const label = "R" + counter++;
+            createPin(x, y, label);
+            logPin(x, y, label);
+        });
+    </script>
+</body>
+</html>
